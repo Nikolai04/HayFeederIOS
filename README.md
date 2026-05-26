@@ -1,18 +1,25 @@
 # HayFeeder iPhone App
 
-Small native iPhone app for the STM32 HayFeeder BLE controller.
+Native SwiftUI iPhone app for the STM32 HayFeeder BLE controller.
 
-## What It Does
+## Features
 
 - Scans only for the BLE device named `HayFeeder`.
-- Connects to the existing HayFeeder custom BLE characteristic.
-- Sends the iPhone time automatically after connecting.
-- Edits the three daily feed times using `KL HH:MM` fields.
-- Shows the next feed time.
-- Sends `S` when disconnecting so the feeder returns to low-power sleep.
-- Shows one feeder photo at the bottom, chosen randomly when the app opens.
+- Connects to the HayFeeder custom BLE characteristic.
+- Syncs the iPhone time automatically after connecting.
+- Edits three daily feed times with `KL HH:MM` fields.
+- Shows the next feed time and refreshes it while the app is open.
+- Sends `S` on disconnect so the controller exits BLE setup mode and returns to sleep.
+- Shows one feeder photo at the bottom, chosen randomly each time the app opens.
 
-## BLE Commands
+## Requirements
+
+- macOS with Xcode
+- iPhone with BLE support
+- Apple ID/development team for device signing
+- Feeder firmware advertising as `HayFeeder`
+
+## BLE Protocol
 
 The app writes UTF-8 commands to:
 
@@ -27,22 +34,16 @@ F:14:00,19:00,23:00
 S
 ```
 
-## Open In Xcode
+The feeder reports details on its serial console. The app does not require BLE notifications.
 
-1. Copy/open this folder on a Mac:
+## Run From Xcode
 
-```text
-C:\Users\Nikolai\Documents\New project\HayFeederIOS
-```
+1. Open `HayFeederIOS.xcodeproj` in Xcode.
+2. Select the `HayFeederIOS` target.
+3. Set your Apple development team under **Signing & Capabilities**.
+4. Select an iPhone as the run target.
+5. Press **Run**.
 
-2. Open:
+Before connecting, enable BLE setup mode on the feeder by opening/closing the reload switch twice within 10 seconds. The feeder keeps BLE setup mode active for 10 minutes.
 
-```text
-HayFeederIOS.xcodeproj
-```
-
-3. Select your iPhone as the run target.
-4. In Xcode, set your Apple development team under **Signing & Capabilities**.
-5. Press Run.
-
-Before connecting, enable BLE setup mode on the feeder by opening/closing the reload switch twice within 10 seconds.
+Only one phone/app can connect to the feeder at a time. Disconnect nRF Connect, ST BLE Toolbox, or any other BLE app before scanning from HayFeeder.
