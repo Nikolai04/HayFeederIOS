@@ -1,0 +1,106 @@
+name: Build iPhone App
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-unsigned-ipa:
+    name: Build unsigned iPhone IPA
+    runs-on: macos-15
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Locate Xcode project
+        id: project
+        shell: bash
+        run: |
+          if [[ -d "HayFeederIOS.xcodeproj" ]]; then
+            project_dir="."
+          elif [[ -d "HayFeederIOS/HayFeederIOS.xcodeproj" ]]; then
+            project_dir="HayFeederIOS"
+          else
+            echo "::error::HayFeederIOS.xcodeproj was not found."
+            exit 1
+          fi
+
+          echo "dir=$project_dir" >> "$GITHUB_OUTPUT"
+
+      - name: Show build environment
+        shell: bash
+        run: |
+          xcodebuild -version
+          xcodebuild \
+            -project "${{ steps.project.outputs.dir }}/HayFeederIOS.xcodeproj" \
+            -scheme HayFeederIOS \
+            -list
+
+      - name: Build for iPhone
+        shell: bash
+        run: |
+          set -o pipefail
+
+          xcodebuild \
+            -project "${{ steps.project.outputs.dir }}/HayFeederIOS.xcodeproj" \
+            -scheme HayFeederIOS \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination "generic/platform=iOS" \
+            -derivedDataPath "$RUNNER_TEMP/HayFeederDerivedData" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            clean build | tee "$RUNNER_TEMP/xcodebuild.log"
+
+      - name: Package unsigned IPA
+        id: package
+        shell: bash
+        run: |
+          app_path="$RUNNER_TEMP/HayFeederDerivedData/Build/Products/Release-iphoneos/HayFeederIOS.app"
+
+          if [[ ! -d "$app_path" ]]; then
+            echo "::error::The compiled HayFeederIOS.app was not found."
+            exit 1
+          fi
+
+          package_dir="$RUNNER_TEMP/HayFeederPackage"
+          mkdir -p "$package_dir/Payload"
+          cp -R "$app_path" "$package_dir/Payload/"
+
+          version=$(/usr/libexec/PlistBuddy -c "Print:CFBundleShortVersionString" "$app_path/Info.plist")
+          build=$(/usr/libexec/PlistBuddy -c "Print:CFBundleVersion" "$app_path/Info.plist")
+          ipa_name="HayFeederIOS-${version}-${build}-unsigned.ipa"
+
+          (
+            cd "$package_dir"
+            /usr/bin/zip -qry "$GITHUB_WORKSPACE/$ipa_name" Payload
+          )
+
+          echo "ipa=$ipa_name" >> "$GITHUB_OUTPUT"
+
+      - name: Upload iPhone IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: HayFeederIOS-unsigned-IPA
+          path: ${{ steps.package.outputs.ipa }}
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: HayFeederIOS-build-log
+          path: ${{ runner.temp }}/xcodebuild.log
+          if-no-files-found: ignore
+          retention-days: 14

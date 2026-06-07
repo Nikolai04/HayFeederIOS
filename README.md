@@ -14,10 +14,39 @@ Native SwiftUI iPhone app for the STM32 HayFeeder BLE controller.
 
 ## Requirements
 
-- macOS with Xcode
 - iPhone with BLE support
-- Apple ID/development team for device signing
 - Feeder firmware advertising as `HayFeeder`
+
+## Build From Windows
+
+GitHub Actions builds the native SwiftUI app on a hosted macOS runner. No Mac
+is needed locally.
+
+1. Push the project to the `HayFeederIOS` GitHub repository.
+2. Open the repository's **Actions** tab.
+3. Select **Build iPhone App**, then choose **Run workflow**.
+4. Open the completed run and download `HayFeederIOS-unsigned-IPA`.
+5. Extract the downloaded artifact ZIP to get the `.ipa` file.
+6. Sign and install the IPA from Windows using
+   [AltStore/AltServer](https://faq.altstore.io/altstore-classic/how-to-install-altstore-windows).
+
+The GitHub artifact is intentionally unsigned because Apple signing is tied to
+an Apple account and device. AltStore performs that signing while installing.
+With a free Apple account the app normally needs refreshing every seven days.
+A paid Apple Developer account permits longer-lived signing.
+
+The workflow also runs automatically whenever iPhone app code is pushed. A
+failed run uploads `HayFeederIOS-build-log` for troubleshooting.
+
+## Run From Xcode
+
+For local Mac development:
+
+1. Open `HayFeederIOS.xcodeproj` in Xcode.
+2. Select the `HayFeederIOS` target.
+3. Set your Apple development team under **Signing & Capabilities**.
+4. Select an iPhone as the run target.
+5. Press **Run**.
 
 ## BLE Protocol
 
@@ -35,14 +64,6 @@ S
 ```
 
 The feeder reports details on its serial console. The app does not require BLE notifications.
-
-## Run From Xcode
-
-1. Open `HayFeederIOS.xcodeproj` in Xcode.
-2. Select the `HayFeederIOS` target.
-3. Set your Apple development team under **Signing & Capabilities**.
-4. Select an iPhone as the run target.
-5. Press **Run**.
 
 Before connecting, enable BLE setup mode on the feeder by opening/closing the reload switch twice within 10 seconds. The feeder keeps BLE setup mode active for 10 minutes.
 

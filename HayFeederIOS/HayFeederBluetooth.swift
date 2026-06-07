@@ -13,6 +13,8 @@ final class HayFeederBluetooth: NSObject, ObservableObject {
     private var central: CBCentralManager!
     private var peripheral: CBPeripheral?
     private var writeCharacteristic: CBCharacteristic?
+    private var pendingCommands: [String] = []
+    private var writeInProgress = false
 
     override init() {
         super.init()
@@ -55,6 +57,10 @@ final class HayFeederBluetooth: NSObject, ObservableObject {
         write("F:\(first),\(second),\(third)")
     }
 
+    func setBothSlotsPerFeed(_ enabled: Bool) {
+        write(enabled ? "B:1" : "B:0")
+    }
+
     private func syncPhoneTime() {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
@@ -63,22 +69,56 @@ final class HayFeederBluetooth: NSObject, ObservableObject {
     }
 
     private func write(_ command: String) {
-        guard let peripheral, let writeCharacteristic, let data = command.data(using: .utf8) else {
+        guard isConnected else {
             status = "Not connected"
+            return
+        }
+
+        pendingCommands.append(command)
+        processNextCommand()
+    }
+
+    private func processNextCommand() {
+        guard !writeInProgress,
+              !pendingCommands.isEmpty,
+              let peripheral,
+              let writeCharacteristic else {
+            return
+        }
+
+        let command = pendingCommands[0]
+        guard let data = command.data(using: .utf8) else {
+            pendingCommands.removeFirst()
+            processNextCommand()
             return
         }
 
         let writeType: CBCharacteristicWriteType = writeCharacteristic.properties.contains(.write)
             ? .withResponse
             : .withoutResponse
+
+        if writeType == .withoutResponse && !peripheral.canSendWriteWithoutResponse {
+            return
+        }
+
+        pendingCommands.removeFirst()
+        writeInProgress = writeType == .withResponse
         peripheral.writeValue(data, for: writeCharacteristic, type: writeType)
         status = writeType == .withResponse ? "Writing \(command)" : "Write sent \(command)"
+
+        if writeType == .withoutResponse {
+            DispatchQueue.main.async {
+                self.processNextCommand()
+            }
+        }
     }
 
     private func disconnectLocal() {
         isScanning = false
         isConnected = false
         writeCharacteristic = nil
+        pendingCommands.removeAll()
+        writeInProgress = false
 
         if let peripheral {
             central.cancelPeripheralConnection(peripheral)
@@ -125,6 +165,8 @@ extension HayFeederBluetooth: CBCentralManagerDelegate {
                         error: Error?) {
         isConnected = false
         writeCharacteristic = nil
+        pendingCommands.removeAll()
+        writeInProgress = false
         status = "Disconnected"
     }
 
@@ -132,6 +174,8 @@ extension HayFeederBluetooth: CBCentralManagerDelegate {
                         didFailToConnect peripheral: CBPeripheral,
                         error: Error?) {
         isConnected = false
+        pendingCommands.removeAll()
+        writeInProgress = false
         status = "Connect failed"
     }
 }
@@ -158,13 +202,19 @@ extension HayFeederBluetooth: CBPeripheralDelegate {
 
         writeCharacteristic = characteristic
         isConnected = true
-        status = "Connected. Time synced."
+        status = "Connected"
         syncPhoneTime()
     }
 
     func peripheral(_ peripheral: CBPeripheral,
                     didWriteValueFor characteristic: CBCharacteristic,
                     error: Error?) {
+        writeInProgress = false
         status = error == nil ? "Write OK" : "Write failed"
+        processNextCommand()
+    }
+
+    func peripheralIsReady(toSendWriteWithoutResponse peripheral: CBPeripheral) {
+        processNextCommand()
     }
 }

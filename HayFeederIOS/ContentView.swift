@@ -3,12 +3,13 @@ import SwiftUI
 struct ContentView: View {
     @StateObject private var bluetooth = HayFeederBluetooth()
 
-    @State private var feed1Hour = "14"
-    @State private var feed1Minute = "00"
-    @State private var feed2Hour = "19"
-    @State private var feed2Minute = "00"
-    @State private var feed3Hour = "23"
-    @State private var feed3Minute = "00"
+    @AppStorage("feed1Hour") private var feed1Hour = "14"
+    @AppStorage("feed1Minute") private var feed1Minute = "00"
+    @AppStorage("feed2Hour") private var feed2Hour = "19"
+    @AppStorage("feed2Minute") private var feed2Minute = "00"
+    @AppStorage("feed3Hour") private var feed3Hour = "23"
+    @AppStorage("feed3Minute") private var feed3Minute = "00"
+    @AppStorage("bothSlotsPerFeed") private var bothSlotsPerFeed = true
     @State private var alertText: String?
 
     private let selectedPhoto = ["hay_photo_1", "hay_photo_2", "hay_photo_3", "hay_photo_4"].randomElement()!
@@ -61,6 +62,13 @@ struct ContentView: View {
                 .disabled(!bluetooth.isConnected)
                 .padding(.top, 6)
 
+                Button(bothSlotsPerFeed ? "Both slots per feed: ON" : "Both slots per feed: OFF") {
+                    bothSlotsPerFeed.toggle()
+                    bluetooth.setBothSlotsPerFeed(bothSlotsPerFeed)
+                }
+                .buttonStyle(OutlineButtonStyle(color: mutedText, text: text, background: background))
+                .disabled(!bluetooth.isConnected)
+
                 Image(selectedPhoto)
                     .resizable()
                     .scaledToFit()
@@ -72,6 +80,11 @@ struct ContentView: View {
             .padding(.bottom, 32)
         }
         .background(background.ignoresSafeArea())
+        .onChange(of: bluetooth.isConnected) { connected in
+            if connected {
+                bluetooth.setBothSlotsPerFeed(bothSlotsPerFeed)
+            }
+        }
         .alert("HayFeeder", isPresented: Binding(
             get: { alertText != nil },
             set: { if !$0 { alertText = nil } }
@@ -111,7 +124,7 @@ struct ContentView: View {
             .font(.system(size: 20))
             .frame(width: 58)
             .textFieldStyle(.plain)
-            .onChange(of: value.wrappedValue) { _, newValue in
+            .onChange(of: value.wrappedValue) { newValue in
                 value.wrappedValue = String(newValue.filter(\.isNumber).prefix(2))
             }
     }
